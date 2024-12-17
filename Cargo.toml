@@ -2,6 +2,9 @@
 name = "HapPhase"
 version = "0.1.0"
 edition = "2021"
+authors = ["jiangchen"]
+email = ["jiangchen2@genomics.cn/cherryamme@qq.com"]
+description = "(2024-12-17) Happhase: used to count haplotypes from bam"
 
 [dependencies]
 rust-htslib = "0.49.0"
