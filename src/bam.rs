@@ -47,7 +47,7 @@ pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f
     let mut read_snp_map: HashMap<String, HashMap<(String, usize, char, char), bool>> = HashMap::new();
     let mut record_count = 0;
     let mut map_count = 0;
-    info!("SNPs: {:?}", snps);
+    // info!("SNPs: {:?}", snps);
     for record in bam.records() {
         let record = record.expect("Error reading BAM record");
         record_count += 1;
@@ -153,6 +153,7 @@ pub fn process_mutation_data(read_mutation_presence: &HashMap<String, HashMap<(S
 
     // let elapsed_time = start_time.elapsed();
     // info!("Process_mutation_data Elapsed time: {:?}", elapsed_time);
+    info!("HapArrays: {:?}", hap_arrays);
     hap_arrays
 }
 

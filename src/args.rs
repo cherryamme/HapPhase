@@ -41,9 +41,13 @@ pub struct Args {
     #[arg(short='M', long, default_value = "0.8")]
     pub max_ratio: f32,
     /// min HapArray array_proportion:
-    #[arg(short, long, default_value = "0.1")]
+    #[arg(long, default_value = "0.1")]
     pub min_proportion: f64, 
     /// min HapArray count
-    #[arg(short, long, default_value = "2")]
+    #[arg(long, default_value = "2")]
     pub min_count: usize,
+    /// similarity method
+    #[arg(long, default_value = "cosine",value_parser = ["cosine","cos","euclidean","euc","mse"])]
+    pub method: String,
+
 }

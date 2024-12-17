@@ -44,7 +44,7 @@ pub fn parse_vcf(file_path: &str, region: Option<String>, snp_num: usize, min_ra
     // Sort by quality value in descending order and take the top 5
     snps.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap());
     snps.truncate(snp_num);
-
+    info!("loading SNPs: {:?}", snps);
     Ok(snps)
 }
 

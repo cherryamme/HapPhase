@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use ndarray::prelude::*;
 use ndarray::linalg::Dot;
 use log::{info,debug};
@@ -8,21 +10,45 @@ struct Haplotype {
 	array: Array1<f64>,
 	hapnum: usize,
 }
+impl Display for Haplotype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Haplotype: {}; Hapnum: {}", self.array, self.hapnum)
+    }
+    
+}
 
+fn similarity(a: &Array1<f64>, b: &Array1<f64>, method: &str) -> f64 {
+    match method {
+        "cosine" | "cos" => cosine_similarity(a, b),
+        "euclidean" | "euc" => euclidean_distance(a, b),
+        "mse" => mean_squared_error(a, b),
+        _ => panic!("Unsupported method. Use 'cosine' or 'euclidean'."),
+    }
+}
 
-
+fn mean_squared_error(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
+    if a.len() != b.len() {
+        panic!("Vectors must be of the same length.");
+    }
+    let total_error: f64 = a.iter().zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum();
+    total_error / a.len() as f64
+}
 fn cosine_similarity(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-    let a_f64: Array1<f64> = a.mapv(|x| x as f64);
-    let b_f64: Array1<f64> = b.mapv(|x| x as f64);
-    let dot_product = a_f64.dot(&b_f64);
-    let norm_a = a_f64.dot(&a_f64).sqrt();
-    let norm_b = b_f64.dot(&b_f64).sqrt();
+    let dot_product = a.dot(b);
+    let norm_a = a.dot(a).sqrt();
+    let norm_b = b.dot(b).sqrt();
     dot_product / (norm_a * norm_b)
 }
 
+fn euclidean_distance(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
+    let diff = a - b;
+    diff.dot(&diff).sqrt()
+}
 
 
-pub fn cal_haplotype(haparrays: HapArrays, snps: &Vec<(String, i64, char, char, f64, f64)>, min_proportion: f64, min_count: usize) -> usize {
+pub fn cal_haplotype(haparrays: HapArrays, snps: &Vec<(String, i64, char, char, f64, f64)>, min_proportion: f64, min_count: usize, method: &str) -> usize {
 	let mut hap_array = Array1::<u8>::zeros(snps.len());
 	let mut hap_save = Vec::new();
 	let mut array_count = 0;
@@ -43,12 +69,12 @@ pub fn cal_haplotype(haparrays: HapArrays, snps: &Vec<(String, i64, char, char, 
 	}
     let given_vector = Array1::from_vec(snps.iter().map(|snp| snp.5 as f64).collect());
 	// info!("Given vector: {:?}", given_vector);
-	info!("Hap save: {:?}", hap_save);
+	info!("Haplotype save: {:?}", hap_save);
     let mut max_similarity = -1.0;
     let mut most_similar_array = None;
 
     for hap in &hap_save {
-        let similarity = cosine_similarity(&hap.array, &given_vector);
+        let similarity = similarity(&hap.array, &given_vector, method);
         if similarity > max_similarity {
             max_similarity = similarity;
             most_similar_array = Some(hap);
@@ -56,7 +82,8 @@ pub fn cal_haplotype(haparrays: HapArrays, snps: &Vec<(String, i64, char, char, 
     }
 
     if let Some(array) = most_similar_array {
-        info!("Most similar array: {:?}; max_similarity: {:?}", array, max_similarity);
+        info!("SNVratio array: {}", given_vector);
+        info!("Most similar array: {}; max_similarity: {:?}", array, max_similarity);
         array.hapnum
     } else {
         info!("No similar array found.");
