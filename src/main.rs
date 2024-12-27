@@ -23,5 +23,5 @@ fn main() {
     let haparrays = bam::process_mutation_data(&read_snp_map);
     // info!("Hap save: {:?}", haparrays);
     let hap_num = hap::cal_haplotype(haparrays, &snps, args.min_proportion, args.min_count, &args.method);
-    println!("Haplotype num: {:?}", hap_num);
+    println!("Haplotype num: {}", hap_num);
 }

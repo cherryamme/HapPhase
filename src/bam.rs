@@ -16,7 +16,7 @@ pub struct HapArray {
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HapArrays {
     snp: Vec<(String, usize, char, char)>,
     array: Vec<HapArray>,
@@ -35,9 +35,21 @@ impl IntoIterator for HapArrays {
 }
 
 
+use std::fmt;
 
-
-
+impl fmt::Debug for HapArrays {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\tHapArrays {{")?;
+        writeln!(f, "\tsnp: {:?}", self.snp)?;
+        writeln!(f, "\tarray: [")?;
+        for hap_array in &self.array {
+            writeln!(f, "\t{:?}", hap_array)?;
+        }
+        writeln!(f, "\t]")?;
+        writeln!(f, "\tlength: {}", self.length)?;
+        write!(f, "\ttotal_count: {} }}", self.total_count)
+    }
+}
 
 
 pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f64)>) -> HashMap<String, HashMap<(String, usize, char, char), bool>> {
@@ -79,7 +91,6 @@ pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f
                 }
             }
         }
-
     }
     // 删除没有覆盖到那些snp的reads
     let snp_count = snps.len();

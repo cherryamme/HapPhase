@@ -1,5 +1,5 @@
 use log::{info,debug};
-use rust_htslib::bcf::{IndexedReader, Read};
+use rust_htslib::bcf::{record::Genotype, IndexedReader, Read};
 use std::error::Error;
 
 pub fn parse_vcf(file_path: &str, region: Option<String>, snp_num: usize, min_ratio: f32, max_ratio: f32) -> Result<Vec<(String, i64, char, char, f64, f64)>, Box<dyn Error>> {
@@ -24,18 +24,21 @@ pub fn parse_vcf(file_path: &str, region: Option<String>, snp_num: usize, min_ra
         let qual = record.qual() as f64;
 
         let alleles = record.alleles();
-        if alleles.len() != 2 {
+        let allele_count = record.allele_count();
+        if allele_count != 2 || alleles[0].len() != 1 || alleles[1].len() != 1 || !record.has_filter("PASS".as_bytes()) || qual <= 5.0 {
             continue; // Skip indels and multi-allelic sites
         }
-
         let ref_allele = alleles[0][0] as char;
         let alt_allele = alleles[1][0] as char;
-		let expected = ["./1", "1|1", "0/1", "0|1", "1|.", "1/1"];
+        let genotype = format!("{}",record.genotypes().unwrap().get(0));
+		let expected = ["0/1", "0|1"];
         // Check if it's a SNP (single nucleotide polymorphism)
-		if ref_allele.is_alphabetic() && alt_allele.is_alphabetic() {
-			if let Some(af) = record.format(b"AF").float().ok().and_then(|af| af.get(0).map(|af| af[0])) {
-				if af >= min_ratio && af <= max_ratio {
-				snps.push((std::str::from_utf8(chrom)?.to_owned(), pos, ref_allele, alt_allele, qual, af as f64));
+        if ref_allele.is_alphabetic() && alt_allele.is_alphabetic() && expected.contains(&genotype.as_str()) {
+            if let Some(af) = record.format(b"AF").float().ok().and_then(|af| af.get(0).map(|af| af[0])) {
+                if af >= min_ratio && af <= max_ratio {
+                    // debug!("alleles: {:?} allele_count:{:?} record: {:?}", alleles, record.allele_count(),(std::str::from_utf8(chrom)?.to_owned(), pos, ref_allele, alt_allele, qual, af as f64));
+                    // debug!("{:?}", (std::str::from_utf8(chrom)?.to_owned(), pos, ref_allele, alt_allele, qual, af as f64));
+				    snps.push((std::str::from_utf8(chrom)?.to_owned(), pos, ref_allele, alt_allele, qual, af as f64));
 				}
 			}
 		}
