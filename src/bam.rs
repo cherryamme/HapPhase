@@ -19,6 +19,7 @@ pub struct HapArray {
 #[derive(Clone)]
 pub struct HapArrays {
     snp: Vec<(String, usize, char, char)>,
+    pub snp_ratio_vec: Vec<f64>,
     array: Vec<HapArray>,
     length: usize,
     total_count: usize,
@@ -41,6 +42,7 @@ impl fmt::Debug for HapArrays {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\tHapArrays {{")?;
         writeln!(f, "\tsnp: {:?}", self.snp)?;
+        writeln!(f, "\tsnp_ratio_vec: {:?}", self.snp_ratio_vec)?;
         writeln!(f, "\tarray: [")?;
         for hap_array in &self.array {
             writeln!(f, "\t{:?}", hap_array)?;
@@ -52,11 +54,12 @@ impl fmt::Debug for HapArrays {
 }
 
 
-pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f64)>) -> HashMap<String, HashMap<(String, usize, char, char), bool>> {
+pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, &str, f64)>) -> (HashMap<String, HashMap<(String, usize, char, char), bool>>,HashMap<(String, usize, char, char),f64>,usize) {
     let start_time = std::time::Instant::now();
     let mut bam: bam::Reader = bam::Reader::from_path(input_bam).expect("Error opening BAM file");
     let header = bam.header().to_owned();
     let mut read_snp_map: HashMap<String, HashMap<(String, usize, char, char), bool>> = HashMap::new();
+    let mut snp_ratio_dict = HashMap::new();
     let mut record_count = 0;
     let mut map_count = 0;
     // info!("SNPs: {:?}", snps);
@@ -73,7 +76,8 @@ pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f
         // TODO 使用rust_htslib 的read_pos方法进行优化
         // TODO 支持输入indel类型的snp
         for snp in snps {
-            let (snp_chrom, snp_pos, snp_ref, snp_alt, _, _) = snp;
+            let (snp_chrom, snp_pos, snp_ref, snp_alt, _, _, ratio) = snp;
+            snp_ratio_dict.insert((snp_chrom.to_string(), *snp_pos as usize, *snp_ref, *snp_alt), ratio.clone());
             if chrom_str == *snp_chrom {
                 if let Ok(Some(read_pos)) = record.cigar().read_pos(*snp_pos as u32, true, false) {
                     let read_pos_usize = read_pos as usize - 1;
@@ -82,6 +86,7 @@ pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f
                     read_snp_map.entry(read_name.clone())
                     .or_insert_with(HashMap::new)
                     .insert((snp_chrom.to_string(), *snp_pos as usize, *snp_ref, *snp_alt), is_snp_present);
+                    
                     // NOTE 用于 debug
                     // if *snp_pos == 70935946 {
                     //     info!("SNP: {:?}", snp);
@@ -96,9 +101,10 @@ pub fn get_bam_dict(input_bam: &str, snps: &Vec<(String, i64, char, char, f64, f
     let snp_count = snps.len();
     read_snp_map.retain(|_, snp_map| snp_map.len() >= snp_count);
     let elapsed_time = start_time.elapsed();
+    let snps_count = read_snp_map.len();
     info!("Get_bam_dict Elapsed time: {:?}", elapsed_time);
     info!("Total records: {}, map_count: {}, contain SNPs count: {}", record_count, map_count, read_snp_map.len());
-    read_snp_map
+    (read_snp_map,snp_ratio_dict,snps_count)
 }
 
 
@@ -108,7 +114,7 @@ use std::collections::hash_map::Entry;
 use std::collections::BTreeMap;
 use std::cmp::Ordering;
 
-pub fn process_mutation_data(read_mutation_presence: &HashMap<String, HashMap<(String, usize, char, char), bool>>) -> HapArrays {
+pub fn process_mutation_data(read_mutation_presence: &HashMap<String, HashMap<(String, usize, char, char), bool>>, snp_ratio_dict: &HashMap<(String, usize, char, char), f64>) -> HapArrays {
     // let start_time = std::time::Instant::now();
     // Collect all SNP keys and sort them to ensure consistent ordering
     let mut snp_keys: Vec<(String, usize, char, char)> = read_mutation_presence
@@ -117,7 +123,7 @@ pub fn process_mutation_data(read_mutation_presence: &HashMap<String, HashMap<(S
         .collect();
     snp_keys.sort();
     snp_keys.dedup();
-
+    let snp_ratio_vec = snp_keys.iter().map(|key| snp_ratio_dict.get(key).unwrap_or(&0.0).clone()).collect::<Vec<f64>>();
     // Convert bool to u8 and form vectors
     let mut converted_data: HashMap<String, Vec<u8>> = HashMap::new();
     for (read_name, snp_map) in read_mutation_presence {
@@ -150,6 +156,7 @@ pub fn process_mutation_data(read_mutation_presence: &HashMap<String, HashMap<(S
     let hap_arrays = HapArrays {
         length: snp_keys.len(),
         snp: snp_keys,
+        snp_ratio_vec: snp_ratio_vec,
         array: array_proportion
             .into_iter()
             .map(|(array, proportion)| HapArray {
@@ -174,7 +181,7 @@ pub fn test_get_read_map() {
     pretty_env_logger::init();
     let input_bam = "/home/gushanshan/project/2024-9-30-SMN-FL-analysis/MCGD085-12/MCGD085-12.bam";
     let snps = vec![
-        ("chr5".to_string(), 70944812, 'G', 'C', 21.5, 0.4528999924659729),
+        ("chr5".to_string(), 70944812, 'G', 'C', 21.5, "het",0.4528999924659729),
         // Add more SNPs here
     ];
     let read_snp_map = get_bam_dict(input_bam, &snps);
@@ -190,14 +197,14 @@ pub fn test_get_bam_dict() {
     pretty_env_logger::init();
     let input_bam = "/home/gushanshan/project/2024-9-30-SMN-FL-analysis/MCGD085-12/MCGD085-12.bam";
     let snps = vec![
-        ("chr5".to_string(), 70944812, 'G', 'C', 21.5, 0.4528999924659729),
-        ("chr5".to_string(), 70935946, 'A', 'G', 22.649999618530273, 0.4239000082015991),
-        ("chr5".to_string(), 70931073, 'A', 'C', 22.139999389648438, 0.33730000257492065),
-        ("chr5".to_string(), 70940340, 'G', 'C', 21.56999969482422, 0.36230000853538513)
+        ("chr5".to_string(), 70944812, 'G', 'C', 21.5, "het", 0.4528999924659729),
+        ("chr5".to_string(), 70935946, 'A', 'G', 22.649999618530273, "het", 0.4239000082015991),
+        ("chr5".to_string(), 70931073, 'A', 'C', 22.139999389648438, "het", 0.33730000257492065),
+        ("chr5".to_string(), 70940340, 'G', 'C', 21.56999969482422, "het", 0.36230000853538513)
         // Add more SNPs here
     ];
-    let read_snp_map = get_bam_dict(input_bam, &snps);
+    let (read_snp_map,snp_ratio_dict, map_count) = get_bam_dict(input_bam, &snps);
     // info!("{:?}", read_snp_map);
-    let haparray = process_mutation_data(&read_snp_map);
+    let haparray = process_mutation_data(&read_snp_map, &snp_ratio_dict);
     info!("{:?}", haparray);
 }

@@ -49,5 +49,8 @@ pub struct Args {
     /// similarity method
     #[arg(long, default_value = "cosine",value_parser = ["cosine","cos","euclidean","euc","mse"])]
     pub method: String,
+    /// The path of the bed file
+    #[arg(short, long, required = false)]
+    pub bed: Option<String>,
 
 }
